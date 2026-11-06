@@ -1,0 +1,30 @@
+# Build outputs
+build/
+Debug/
+Release/
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.o
+*.d
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# 59MB prebuilt DSP libs (not linked by this project's CMake)
+Drivers/CMSIS/Lib/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
