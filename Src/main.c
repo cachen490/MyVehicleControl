@@ -101,22 +101,17 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_CAN1_Init();
-  /* TEMP-NO-IWDG: 暂不启用看门狗。
-     Prescaler=32/Reload=100 -> 100ms 超时，而喂狗代码要到 Step 7 才写，
-     一旦调用这里，板子每 100ms 复位一次，现象像"随机重启"。
-     注意：这一行在 CubeMX 自动生成区内，重新 Generate 会被恢复；
-     永久关闭请到 CubeMX 的 System Core -> IWDG 取消勾选 Activated。
-  MX_IWDG_Init(); */
+  //MX_IWDG_Init();
   MX_SPI5_Init();
   /* USER CODE BEGIN 2 */
-  App_Init();      /* 开 24V + 各模块初始化，内部有约 700ms 的延时（电调自检 + 陀螺零偏标定） */
+  App_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    App_Loop();    /* 内部用 HAL_GetTick() 判 1ms，跑 Motor/Remote/IMU + 底盘 + 云台 */
+    //App_Loop();
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */

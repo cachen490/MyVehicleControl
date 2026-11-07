@@ -44,9 +44,6 @@ uint8_t BSP_CAN_SendStd(uint16_t std_id, const uint8_t *data, uint8_t len)
     hdr.RTR   = CAN_RTR_DATA;    /* 数据帧，不是远程帧 */
     hdr.DLC   = len;
     hdr.TransmitGlobalTime = DISABLE;
-
-    /* 三个发送邮箱都满了，说明总线拥塞或波特率不对。
-     * 这里直接丢帧而不是死等：下一毫秒还有新指令，等只会把整个控制周期拖垮。 */
     if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) == 0) {
         return 0;
     }
@@ -79,12 +76,12 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         return;
     }
     if (hdr.IDE != CAN_ID_STD) {
-        return;                 /* 不是标准帧，不是我们的电机 */
+        return;
     }
 
     next = (uint8_t)((s_head + 1) % RX_QUEUE_SIZE);
     if (next == s_tail) {
-        return;                 /* 队列满了就丢这一帧：说明主循环被拖住了 */
+        return;
     }
 
     s_queue[s_head].id = hdr.StdId;
