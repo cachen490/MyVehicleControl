@@ -70,8 +70,8 @@
 #define SIGN_FR             (+1.0f)         /* 右前轮 */
 #define SIGN_RL             (+1.0f)         /* 左后轮 */
 #define SIGN_RR             (+1.0f)         /* 右后轮 */
-#define SIGN_GX             (+1.0f)         /* 陀螺 X 轴 */
-#define SIGN_GY             (+1.0f)         /* 陀螺 Y 轴 */
+#define SIGN_GX             (+1.0f)         /* 陀螺 X 轴（旧方案的投影公式用，现不用） */
+#define SIGN_GY             (+1.0f)         /* 陀螺 Y 轴（同上；pitch 现在用 SIGN_GYRO_PITCH） */
 #define SIGN_GZ             (+1.0f)         /* 陀螺 Z 轴 */
 #define SIGN_YAW            (+1.0f)         /* 云台 Yaw 电机 */
 #define SIGN_PIT            (+1.0f)         /* 云台 Pitch 电机 */
