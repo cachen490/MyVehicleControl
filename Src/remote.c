@@ -109,11 +109,9 @@ void Remote_OnIdle(void)
         Remote_Decode(s_frame);
     }
 
-    /* 重新武装。注意 HAL_UART_AbortReceive 会顺手关掉 IDLE 中断，得再打开 */
     HAL_UART_AbortReceive(&huart1);
     HAL_UART_Receive_DMA(&huart1, s_dma, DMA_BUF_LEN);
     __HAL_UART_CLEAR_IDLEFLAG(&huart1);
-    __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 }
 
 void Remote_Update(void)

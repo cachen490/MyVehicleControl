@@ -48,6 +48,8 @@
 
 /* USER CODE BEGIN Includes */
 #include "app.h"
+#include "bsp_can.h"
+#include "motor_dji.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -111,6 +113,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    float cur[4] = {2.0f, 0.0f, 0.0f, 0.0f};
+    Motor_3508_SetCurrent(cur);
+    
+    if (g_motor3508[0].speed > 1.0f) {
+      HAL_GPIO_TogglePin(GPIOE, GPIO_PIN_11);
+    }
+    HAL_Delay(1);
     //App_Loop();
   /* USER CODE END WHILE */
 

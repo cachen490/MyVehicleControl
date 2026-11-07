@@ -103,8 +103,6 @@ void IMU_Update(void)
     s_gyro[0] = (float)raw[0] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
     s_gyro[1] = (float)raw[1] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
     s_gyro[2] = (float)raw[2] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
-
-    s_online = 1;                            /* 能读到数据就算在线 */
 }
 
 float   IMU_GetGyroX(void) { return s_gyro[0] - s_bias[0]; }
