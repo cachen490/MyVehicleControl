@@ -28,7 +28,6 @@ void Chassis_Stop(void)
 
 void Chassis_Task(const Remote_t *rc)
 {
-    /* 1. 遥控 → 车体三个速度 */
     float vx = rc->ly * CHASSIS_V_MAX;      /* 左摇杆上下 → 前后 */
     float vy = rc->lx * CHASSIS_V_MAX;      /* 左摇杆左右 → 左右 */
     float wz = rc->wheel * CHASSIS_W_MAX;   /* 拨轮 → 自转 */
@@ -39,13 +38,11 @@ void Chassis_Task(const Remote_t *rc)
     float target[4];
     float cur[4];
 
-    /* 2. 逆解：车体速度 → 四个轮子的角速度 */
     target[0] = g * ( vx - vy - k * wz );   /* 左前 */
     target[1] = g * ( vx + vy + k * wz );   /* 右前 */
     target[2] = g * ( vx + vy - k * wz );   /* 左后 */
     target[3] = g * ( vx - vy + k * wz );   /* 右后 */
 
-    /* 3. 每个轮子一个独立的速度环 */
     for (int i = 0; i < 4; i++)
     {
         /* 反馈是转子 rad/s，除以减速比变成轮子 rad/s，再乘安装方向 */

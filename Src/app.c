@@ -19,19 +19,14 @@
  */
 static uint8_t Robot_Is_Safe(void)
 {
-    /* 1. 遥控必须在线。掉线了没人能控制它，必须停 */
     if (g_rc.lost_ms > REMOTE_LOST_MS) {
         return 0;
     }
 
-    /* 2. 拨杆必须在使能位。这是"总开关"，
-     *    上电默认不是使能位，必须手动拨过去 —— 防止上电就窜出去 */
     if (g_rc.s[SW_RIGHT] != SW_ENABLE) {
         return 0;
     }
 
-    /* 3. 六个电机都要有反馈。某个电机掉线了还在给电流，
-     *    说明我们发出去的东西没人接，行为不可预测 */
     for (int i = 0; i < 4; i++) {
         if (g_motor3508[i].lost_ms > MOTOR_LOST_MS) return 0;
     }
@@ -39,8 +34,6 @@ static uint8_t Robot_Is_Safe(void)
         if (g_motor6020[i].lost_ms > MOTOR_LOST_MS) return 0;
     }
 
-    /* 4. 陀螺仪必须在线。没陀螺仪就没自稳，
-     *    云台会跟着车乱甩，不如不给电 */
     if (!IMU_IsOnline()) {
         return 0;
     }
@@ -50,25 +43,18 @@ static uint8_t Robot_Is_Safe(void)
 
 void App_Init(void)
 {
-    /* 1. 先把 24V 打开。电调上电后需要约 100ms 自检 */
     HAL_GPIO_WritePin(GPIOH, GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_5, GPIO_PIN_SET);
     HAL_Delay(100);
 
-    /* 2. 各模块初始化。顺序有讲究：
-     *    CAN 要先启动，后面电机才能收发；
-     *    IMU 里有 HAL_Delay，所以放在 1ms 任务开始之前 */
     Motor_Init();
     BSP_CAN_Init();
     Remote_Init();
     IMU_Init();
-    IMU_CalibrateGyro();    /* 500ms：上电这一刻车必须是静止的 */
+    IMU_CalibrateGyro();
 
-    /* 3. 控制器初始化（内部是 PID 参数） */
     Chassis_Init();
     Gimbal_Init();
 
-    /* 4. 让看门狗在调试断点时暂停，不然你打断点它会一直复位。
-     *    这一行只影响调试体验，不影响运行时行为 */
     __HAL_DBGMCU_FREEZE_IWDG();
 }
 

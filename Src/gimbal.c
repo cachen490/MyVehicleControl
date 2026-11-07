@@ -8,11 +8,9 @@
 static PID_t s_pid_yaw;
 static PID_t s_pid_pitch;
 
-/* 低通的状态量（一阶 IIR） */
 static float s_wz_f;
 static float s_wy_f;
 
-/* pitch 串级控制的外环状态：目标角（rad，相对水平，0 = 水平） */
 static float s_pitch_target;
 
 void Gimbal_Init(void)
@@ -27,10 +25,6 @@ void Gimbal_Init(void)
     s_wz_f = 0.0f;
     s_wy_f = 0.0f;
 
-    /* 目标角初值 0 = 水平。"保持水平"就是让这个 0 一直不动，
-     * 摇杆只在需要低头/抬头时临时改它。
-     * 注意这里不能写 IMU_GetPitch()：Gimbal_Init() 可能在 IMU 收敛前调用，
-     * 那样等于把当时的歪斜当成"水平"记下来了 */
     s_pitch_target = 0.0f;
 }
 

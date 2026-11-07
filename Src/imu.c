@@ -3,7 +3,6 @@
 #include "robot_config.h"
 #include <math.h>
 
-/* 片选：低电平有效。这条必须自己拉，CubeMX 里 NSS 配的是 Disable */
 #define MPU_CS_LOW()    HAL_GPIO_WritePin(GPIOF, GPIO_PIN_6, GPIO_PIN_RESET)
 #define MPU_CS_HIGH()   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_6, GPIO_PIN_SET)
 
@@ -16,29 +15,23 @@
 #define REG_PWR_MGMT_1      0x6B
 #define REG_WHO_AM_I        0x75
 
-/* ±2000 dps 量程下：16.4 LSB 对应 1 °/s */
 #define GYRO_LSB_PER_DPS    16.4f
 #define DEG_TO_RAD          0.017453293f
 
-/* ±8g 量程下：4096 LSB 对应 1 g。
- * 为什么不用 ±2g（更精细）：车撞墙时云台加速度能到 3~5g，±2g 会削顶，
- * 削顶的加速度方向是错的 → Mahony 会把姿态拉歪。
- * 4096 LSB/g 的倾角分辨率约 0.014°，保持水平完全够用 */
 #define ACCEL_LSB_PER_G     4096.0f
 #define GRAVITY             9.80665f
 
-static float   s_gyro[3];       /* 原始读数（未扣零偏），rad/s */
-static float   s_acc[3];        /* 加速度，m/s²，机体系 */
-static float   s_bias[3];       /* 零偏，IMU_CalibrateGyro() 里测出来 */
-static float   s_q[4] = { 1.0f, 0.0f, 0.0f, 0.0f };  /* 姿态四元数，w x y z */
-static float   s_gb[3] = { 0.0f, 0.0f, 0.0f };       /* Mahony 顺手估的陀螺零偏 */
+static float   s_gyro[3];
+static float   s_acc[3];
+static float   s_bias[3];
+static float   s_q[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+static float   s_gb[3] = { 0.0f, 0.0f, 0.0f };
 static uint8_t s_online;
 
 /** @brief 写一个寄存器。SPI 写的地址最高位是 0 */
 static void MPU_Write(uint8_t reg, uint8_t val)
 {
     uint8_t tx[2] = { reg, val };
-
     MPU_CS_LOW();
     HAL_SPI_Transmit(&hspi5, tx, 2, 2);
     MPU_CS_HIGH();
@@ -48,7 +41,6 @@ static void MPU_Write(uint8_t reg, uint8_t val)
 static void MPU_Read(uint8_t reg, uint8_t *buf, uint16_t len)
 {
     uint8_t addr = (uint8_t)(reg | 0x80);
-
     MPU_CS_LOW();
     HAL_SPI_Transmit(&hspi5, &addr, 1, 2);   /* 先发地址 */
     HAL_SPI_Receive(&hspi5, buf, len, 2);    /* 再收数据 */
@@ -78,7 +70,6 @@ static void Mahony_Update(float gx, float gy, float gz,
     float halfex, halfey, halfez;
     float qa, qb, qc;
 
-    /* ---- 1. 加速度归一化：只留方向，丢掉大小（大小随振动乱跳） ---- */
     if (!(ax == 0.0f && ay == 0.0f && az == 0.0f))
     {
         recip = 1.0f / sqrtf(ax * ax + ay * ay + az * az);
@@ -86,24 +77,18 @@ static void Mahony_Update(float gx, float gy, float gz,
         ay *= recip;
         az *= recip;
 
-        /* ---- 2. 用当前四元数推算：重力在机体系里"应该"指向哪 ----
-         * 这是旋转矩阵第三列的一半（省掉乘 2，后面叉积里会约掉） */
         halfvx = s_q[1] * s_q[3] - s_q[0] * s_q[2];
         halfvy = s_q[0] * s_q[1] + s_q[2] * s_q[3];
         halfvz = s_q[0] * s_q[0] - 0.5f + s_q[3] * s_q[3];
 
-        /* ---- 3. 叉积 = "实测重力方向" × "估计重力方向" = 姿态偏差（弧度） ---- */
         halfex = ay * halfvz - az * halfvy;
         halfey = az * halfvx - ax * halfvz;
         halfez = ax * halfvy - ay * halfvx;
 
-        /* ---- 4. 比例项：偏差直接拉回陀螺读数，把漂移按住 ---- */
         gx += MAHONY_KP * halfex;
         gy += MAHONY_KP * halfey;
         gz += MAHONY_KP * halfez;
 
-        /* ---- 5. 积分项：把"一直存在、拉不平"的偏差记成零偏 ----
-         * 好处是不用每次上电都手标定；给了 0 也能跑，只是稳态精度差一点 */
         if (MAHONY_KI > 0.0f)
         {
             s_gb[0] += MAHONY_KI * halfex * dt;
@@ -116,7 +101,6 @@ static void Mahony_Update(float gx, float gy, float gz,
         }
     }
 
-    /* ---- 6. 四元数一阶积分：q' = 0.5 * q ⊗ ω ---- */
     gx *= 0.5f * dt;
     gy *= 0.5f * dt;
     gz *= 0.5f * dt;
@@ -130,9 +114,7 @@ static void Mahony_Update(float gx, float gy, float gz,
     s_q[2] += ( qa * gy - qb * gz + s_q[3] * gx);
     s_q[3] += ( qa * gz + qb * gy - qc * gx);
 
-    /* ---- 7. 必须归一化，否则数值会慢慢发散，最后全是 NaN ---- */
-    recip = 1.0f / sqrtf(s_q[0] * s_q[0] + s_q[1] * s_q[1] +
-                         s_q[2] * s_q[2] + s_q[3] * s_q[3]);
+    recip = 1.0f / sqrtf(s_q[0] * s_q[0] + s_q[1] * s_q[1] +s_q[2] * s_q[2] + s_q[3] * s_q[3]);
 
     s_q[0] *= recip;
     s_q[1] *= recip;
@@ -175,26 +157,23 @@ void IMU_Init(void)
 {
     uint8_t who = 0;
 
-    HAL_Delay(100);                          /* 上电后等芯片内部起振 */
+    HAL_Delay(100);
 
-    MPU_Write(REG_PWR_MGMT_1, 0x80);         /* 软复位 */
-    HAL_Delay(100);                          /* 复位要等，手册要求 100ms */
+    MPU_Write(REG_PWR_MGMT_1, 0x80);
+    HAL_Delay(100);
 
-    MPU_Write(REG_PWR_MGMT_1, 0x01);         /* 退出睡眠，时钟源用 X 轴陀螺的 PLL（最稳） */
-    MPU_Write(REG_SMPLRT_DIV, 0x00);         /* 采样率 = 1kHz / (1+0) = 1kHz */
-    MPU_Write(REG_CONFIG, 0x03);             /* 数字低通 41Hz，滤掉电机振动的高频噪声 */
-    MPU_Write(REG_GYRO_CONFIG, 0x18);        /* 量程 ±2000 °/s，不启用自检 */
-    MPU_Write(REG_ACCEL_CONFIG, 0x10);       /* 量程 ±8g：Mahony 要用加速度，量程别给太小 */
+    MPU_Write(REG_PWR_MGMT_1, 0x01);
+    MPU_Write(REG_SMPLRT_DIV, 0x00);
+    MPU_Write(REG_CONFIG, 0x03);
+    MPU_Write(REG_GYRO_CONFIG, 0x18);
+    MPU_Write(REG_ACCEL_CONFIG, 0x10);
 
     MPU_Read(REG_WHO_AM_I, &who, 1);
 
-    /* 正常应该是 0x70（MPU6500）。读到 0 或 0xFF 说明 SPI 根本没通 */
     s_online = (who == 0x00 || who == 0xFF) ? 0 : 1;
 
-    /* 零偏先清零。这样即使不调 IMU_CalibrateGyro()，读数和以前一样 */
     s_bias[0] = s_bias[1] = s_bias[2] = 0.0f;
 
-    /* 四元数回到"水平"，等标定时再用加速度计对齐 */
     s_q[0] = 1.0f;
     s_q[1] = 0.0f;
     s_q[2] = 0.0f;
@@ -214,7 +193,7 @@ void IMU_CalibrateGyro(void)
 
     for (i = 0; i < 500; i++)
     {
-        IMU_Update();                   /* 直接读原始值，此时 s_gyro 还没扣偏 */
+        IMU_Update();
         sum[0] += s_gyro[0];
         sum[1] += s_gyro[1];
         sum[2] += s_gyro[2];
@@ -228,7 +207,6 @@ void IMU_CalibrateGyro(void)
 
     for (k = 0; k < 3; k++) s_bias[k] = sum[k] / 500.0f;
 
-    /* 静止 0.5s 采到的平均加速度方向 = 重力方向 → 直接算出当前水平偏差 */
     IMU_AlignFromAccel(asum[0], asum[1], asum[2]);
 }
 
@@ -237,9 +215,6 @@ void IMU_Update(void)
     uint8_t b[14];
     int16_t raw[7];
 
-    /* 一次把 加速度(6) + 温度(2) + 陀螺(6) = 14 字节全读出来。
-     * 分两次读的话中间隔了几十微秒，等于加速度和角速度不同时刻采样，
-     * 快速转动时会给姿态解算引入额外误差 */
     MPU_Read(REG_ACCEL_XOUT_H, b, 14);
 
     for (int k = 0; k < 7; k++)
@@ -247,17 +222,14 @@ void IMU_Update(void)
         raw[k] = (int16_t)((b[2 * k] << 8) | b[2 * k + 1]);
     }
 
-    /* raw[0..2] = 加速度 X/Y/Z，raw[3] = 温度（不用），raw[4..6] = 陀螺 X/Y/Z */
     s_acc[0] = (float)raw[0] / ACCEL_LSB_PER_G * GRAVITY;
     s_acc[1] = (float)raw[1] / ACCEL_LSB_PER_G * GRAVITY;
     s_acc[2] = (float)raw[2] / ACCEL_LSB_PER_G * GRAVITY;
 
-    /* 原始值 → °/s → rad/s */
     s_gyro[0] = (float)raw[4] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
     s_gyro[1] = (float)raw[5] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
     s_gyro[2] = (float)raw[6] / GYRO_LSB_PER_DPS * DEG_TO_RAD;
 
-    /* 姿态解算用的是"扣了零偏"的角速度，否则积分会一直往一边漂 */
     Mahony_Update(s_gyro[0] - s_bias[0],
                   s_gyro[1] - s_bias[1],
                   s_gyro[2] - s_bias[2],
@@ -279,8 +251,6 @@ float IMU_GetPitch(void)
 {
     float s = 2.0f * (s_q[0] * s_q[2] - s_q[3] * s_q[1]);
 
-    /* 钳到 [-1,1]，否则 asinf 会返回 NaN。
-     * NaN 一路传进 PID，再变成 int16 电压 → 电机瞬间满转 */
     if (s >  1.0f) s =  1.0f;
     if (s < -1.0f) s = -1.0f;
 

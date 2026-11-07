@@ -1,10 +1,7 @@
 #include "bsp_can.h"
 #include "can.h"
 
-/* ==================== 接收队列 ====================
- * 中断里只搬字节、主循环统一解码，两者靠这个环形队列交接。
- * 16 深是按 6 帧/ms 算出来的余量：即使主循环被拖住 2ms 也不会丢帧。
- */
+/* ==================== 接收队列 ==================== */
 #define RX_QUEUE_SIZE 16
 
 static CAN_RxFrame_t     s_queue[RX_QUEUE_SIZE];
@@ -54,7 +51,7 @@ uint8_t BSP_CAN_SendStd(uint16_t std_id, const uint8_t *data, uint8_t len)
 uint8_t BSP_CAN_PopFrame(CAN_RxFrame_t *out)
 {
     if (s_tail == s_head) {
-        return 0;               /* 空队列 */
+        return 0;
     }
     *out = s_queue[s_tail];
     s_tail = (uint8_t)((s_tail + 1) % RX_QUEUE_SIZE);
