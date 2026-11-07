@@ -101,7 +101,12 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_CAN1_Init();
-  MX_IWDG_Init();
+  /* TEMP-NO-IWDG: 暂不启用看门狗。
+     Prescaler=32/Reload=100 -> 100ms 超时，而喂狗代码要到 Step 7 才写，
+     一旦调用这里，板子每 100ms 复位一次，现象像"随机重启"。
+     注意：这一行在 CubeMX 自动生成区内，重新 Generate 会被恢复；
+     永久关闭请到 CubeMX 的 System Core -> IWDG 取消勾选 Activated。
+  MX_IWDG_Init(); */
   MX_SPI5_Init();
   /* USER CODE BEGIN 2 */
 
