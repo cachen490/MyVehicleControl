@@ -36,7 +36,7 @@
 #include "stm32f4xx_it.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "remote.h"   /* Remote_OnIdle()：DBUS 空闲中断要用 */
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -214,7 +214,13 @@ void CAN1_RX0_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
-
+  /* DBUS(DR16) 一帧 18 字节，帧间有 12ms 空闲。空闲标志一置位就说明这帧收完了。
+   * 这里只做"通知"，具体取数/解码在 remote.c 的 Remote_OnIdle() 里。 */
+  if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) != RESET)
+  {
+    __HAL_UART_CLEAR_IDLEFLAG(&huart1);
+    Remote_OnIdle();
+  }
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */

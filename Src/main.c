@@ -47,7 +47,7 @@
 #include "gpio.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "app.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -109,18 +109,17 @@ int main(void)
   MX_IWDG_Init(); */
   MX_SPI5_Init();
   /* USER CODE BEGIN 2 */
-
+  App_Init();      /* 开 24V + 各模块初始化，内部有约 700ms 的延时（电调自检 + 陀螺零偏标定） */
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
+    App_Loop();    /* 内部用 HAL_GetTick() 判 1ms，跑 Motor/Remote/IMU + 底盘 + 云台 */
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-
   }
   /* USER CODE END 3 */
 

@@ -32,7 +32,17 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+        Inc/app.h
+        Inc/bsp_can.h
+        Inc/chassis.h
+        Inc/gimbal.h
+        Inc/imu.h
+        Inc/motor_dji.h
+        Inc/pid.h
+        Inc/remote.h
+        Inc/robot_config.h
+)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -44,12 +54,21 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    # 用户手写模块（新增 .c 就加在这里；不要加到 cmake/stm32cubemx/ 下的生成文件里）
+    Src/app.c
+    Src/bsp_can.c
+    Src/chassis.c
+    Src/gimbal.c
+    Src/imu.c
+    Src/motor_dji.c
+    Src/pid.c
+    Src/remote.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+
 )
 
 # Add project symbols (macros)
@@ -64,5 +83,6 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
-    # Add user defined libraries
+    # 需要 libm：gimbal.c 用了 sinf / cosf
+    m
 )

@@ -44,7 +44,11 @@
 /* Includes ------------------------------------------------------------------*/
 
 /* USER CODE BEGIN Includes */
-
+/* 这一版 CubeMX 生成的 main.h 是空的，不带 HAL 头。
+ * 自己加的模块（bsp_can/motor_dji/...）都只 include "main.h"，
+ * 所以在这里补上，一处解决所有 stdint / HAL 类型。
+ * 放在 USER CODE 区，重新 Generate 不会被删掉。 */
+#include "stm32f4xx_hal.h"
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
