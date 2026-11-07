@@ -74,19 +74,26 @@ void App_Init(void)
 
 void App_Task_1ms(void)
 {
-    /* 1. 输入：把这一毫秒内收到的所有帧都处理掉 */
-    Motor_Update();
-    Remote_Update();
-    IMU_Update();
+    static int cnt = 0;
+    float cur[4] = {0};
+    float meas[4];
 
-    /* 2. 判断：安全才输出，不安全就全部断电 */
-    if (Robot_Is_Safe()) {
-        Chassis_Task(&g_rc);
-        Gimbal_Task(&g_rc);
-    } else {
-        Chassis_Stop();     /* 内部会 Reset PID，避免重新使能时积分跳变 */
-        Gimbal_Stop();
+    Motor_Update();
+
+    /* 只让 vx = 0.3 m/s，vy = wz = 0，持续 3 秒，然后停 2 秒 */
+    cnt++;
+    if (cnt < 3000) {
+        float g = COS45 / WHEEL_RADIUS;
+        for (int i = 0; i < 4; i++) {
+            meas[i] = g_motor3508[i].speed / GEAR_RATIO_3508;
+            /* 用 P 控制让轮子转到 0.3/0.076 ≈ 3.95 rad/s */
+            cur[i] = (3.95f - meas[i]) * 0.35f;
+        }
+    } else if (cnt > 5000) {
+        cnt = 0;            /* 循环重来，方便反复看 */
     }
+
+    Motor_3508_SetCurrent(cur);
 }
 
 void App_Loop(void)
