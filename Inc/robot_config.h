@@ -19,10 +19,32 @@
 #define CHASSIS_SPEED_KI    0.05f
 
 /* ==================== 云台 ==================== */
-#define GIMBAL_RATE_MAX     6.0f            /* 摇杆推满时的转动角速度，rad/s */
+#define GIMBAL_RATE_MAX     6.0f            /* 摇杆推满时的转动角速度，rad/s（yaw 用） */
+#define GIMBAL_PITCH_RATE   3.0f            /* pitch 摇杆推满时"目标角"的变化速度，rad/s */
 #define GIMBAL_VOLT_MAX     20.0f           /* 6020 电压上限，V */
-#define PITCH_ANGLE_MIN     (-0.35f)        /* 低头限位，rad */
-#define PITCH_ANGLE_MAX     (0.70f)         /* 抬头限位，rad */
+#define PITCH_ANGLE_MIN     (-0.35f)        /* 目标角下限（低头），rad = -20° */
+#define PITCH_ANGLE_MAX     (0.70f)         /* 目标角上限（抬头），rad = +40° */
+
+/* ==================== Mahony 姿态解算（响应速度 vs 抖动） ==================== */
+/* 1kHz 采样下起调值。抖动/啸叫往下减，跟不住重力方向往上加 */
+#define MAHONY_KP           0.50f
+#define MAHONY_KI           0.005f          /* 顺手估陀螺零偏；给 0 也能跑 */
+
+/* ==================== 云台 pitch 角度环（外环） ==================== */
+/* 单位 rad/s 每 rad 误差：给 2.0 表示偏 10° 就要 20°/s 的修正速度 */
+#define GIMBAL_PITCH_KP     2.0f
+
+/* A 板装在 pitch 臂上时，陀螺哪根轴对应 pitch 转轴：0=X  1=Y  2=Z
+ * 下面填 1 就是"取陀螺 Y 轴"，gimbal.c 里写死调 IMU_GetGyroY()；
+ * 如果你实物是绕 X 转的，就要把 gimbal.c 里那处改成 IMU_GetGyroX()。
+ * 验证方法：手抬 pitch 臂，看 IMU_GetGyroX/Y/Z 哪个变化最大 */
+#define GYRO_PITCH_AXIS     1
+#define SIGN_GYRO_PITCH     (+1.0f)         /* 该轴读数反了就改 -1 */
+
+/* IMU_GetPitch() 的符号：手把云台往上抬时，这个值应该变大。
+ * 变小就改 -1。它必须和 SIGN_GYRO_PITCH、SIGN_PIT 同号，
+ * 否则 pitch 的速度内环会变成正反馈，一上电就往一边顶死 */
+#define SIGN_PITCH_ABS      (+1.0f)
 
 /* 陀螺仪角速度一阶低通系数 α。越小滤得越狠、相位滞后越大。
  * 0.30 对应截止频率约 57Hz（1kHz 采样）。电机啸叫就往下调 0.2，响应发木就往上调 0.5 */
@@ -33,10 +55,10 @@
 #define ID_YAW_6020         1               /* yaw 轴 6020 的 ID */
 #define ID_PITCH_6020       2               /* pitch 轴 6020 的 ID */
 
-/* MPU6500 是否跟着 yaw 轴一起转（也就是 A 板装在云台随动部分上）。
- * 1 = 跟着转（这台车）：yaw / pitch 两轴都直接用陀螺仪角速度做反馈
- * 0 = 不跟着转：yaw 仍用 wz，但 pitch 只能用 6020 的转速反馈（见 Step 6.4.5）
- * 判别方法见 Step 6.4.4 的 10 秒测试，别靠猜 */
+/* 【已废弃，保留仅供参考】MPU6500 是否跟着 yaw 轴一起转。
+ * 改成 Mahony + pitch 角度环之后，gimbal.c 不再读这个宏。
+ * 1 = 跟着转：yaw / pitch 两轴都直接用陀螺仪角速度做反馈
+ * 0 = 不跟着转：yaw 仍用 wz，但 pitch 只能用 6020 的转速反馈（见文档 6.4.5） */
 #define GYRO_ON_YAW_PLATFORM 1
 
 /* ==================== 安全阈值 ==================== */
