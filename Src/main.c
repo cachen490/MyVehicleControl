@@ -113,14 +113,12 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    float cur[4] = {2.0f, 0.0f, 0.0f, 0.0f};
-    Motor_3508_SetCurrent(cur);
-    
-    if (g_motor3508[0].speed > 1.0f) {
-      HAL_GPIO_TogglePin(GPIOE, GPIO_PIN_11);
-    }
-    HAL_Delay(1);
-    //App_Loop();
+    /* Step 3 的"给 1 号轮恒定 2A"测试，留在这里备查：
+     *   float cur[4] = {2.0f, 0.0f, 0.0f, 0.0f};
+     *   Motor_3508_SetCurrent(cur);
+     *   if (g_motor3508[0].speed > 1.0f) HAL_GPIO_TogglePin(GPIOE, GPIO_PIN_11);
+     *   HAL_Delay(1);                                                 */
+    App_Loop();
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */

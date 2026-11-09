@@ -32,7 +32,7 @@ void Chassis_Task(const Remote_t *rc)
     float vy = rc->lx * CHASSIS_V_MAX;      /* 左摇杆左右 → 左右 */
     float wz = rc->wheel * CHASSIS_W_MAX;   /* 拨轮 → 自转 */
 
-    float g = COS45 / WHEEL_RADIUS;
+    float g = 1 / WHEEL_RADIUS;
     float k = HALF_TRACK_X + HALF_TRACK_Y;
 
     float target[4];
