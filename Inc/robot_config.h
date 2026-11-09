@@ -3,8 +3,8 @@
 
 /* ==================== 机械参数（换车就要重新量） ==================== */
 #define WHEEL_RADIUS        0.076f          /* 麦轮半径，m。3508 麦轮一般 76mm */
-#define HALF_TRACK_X        0.24f           /* 左右两轮中心距的一半，m */
-#define HALF_TRACK_Y        0.24f           /* 前后两轮中心距的一半，m */
+#define HALF_TRACK_X        0.40f           /* 左右两轮中心距的一半，m */
+#define HALF_TRACK_Y        0.43f           /* 前后两轮中心距的一半，m */
 #define GEAR_RATIO_3508     (3591.0f / 187.0f)  /* 约 19.2，减速箱减速比 */
 
 /* ==================== 周期与限幅 ==================== */
@@ -19,10 +19,10 @@
 
 /* ==================== 云台 ==================== */
 #define GIMBAL_RATE_MAX     6.0f            /* 摇杆推满时的转动角速度，rad/s（yaw 用） */
-#define GIMBAL_PITCH_RATE   3.0f            /* pitch 摇杆推满时"目标角"的变化速度，rad/s */
+#define GIMBAL_PITCH_RATE   6.0f            /* pitch 摇杆推满时"目标角"的变化速度，rad/s */
 #define GIMBAL_VOLT_MAX     20.0f           /* 6020 电压上限，V */
-#define PITCH_ANGLE_MIN     (-0.35f)        /* 目标角下限（低头），rad = -20° */
-#define PITCH_ANGLE_MAX     (0.70f)         /* 目标角上限（抬头），rad = +40° */
+#define PITCH_ANGLE_MIN     (-3.14f)        /* 目标角下限（低头），rad = -20° */
+#define PITCH_ANGLE_MAX     (3.14f)         /* 目标角上限（抬头），rad = +40° */
 
 /* yaw / pitch 速度环的积分项。默认 0：纯 P 已经够用，积分调不好会慢慢来回荡。
  * 如果 yaw"松手后还以几度/分钟慢慢漂"，把 GIMBAL_RATE_KI 改成 0.02f 试试。
@@ -70,11 +70,11 @@
  *      【不要把左拨杆打到上】—— 那时"转回车头"会停在一个跟车头无关的角度，
  *      而且松手后云台会一直朝那个错误方向转，看着像失控。
  *      上电默认（左拨杆在中位）是原地接管，不受这个值影响，可以放心调车。 */
-#define YAW_ENC_HEAD        0.0f
+#define YAW_ENC_HEAD        3.0f
 
 /* yaw 编码器方向：手拨云台往 SIGN_YAW 的正方向转时 ecd 增大填 +1，减小填 -1。
  * ★ 填反的后果：外环变正反馈，一进跟随就往一边顶死 */
-#define SIGN_ENC_YAW        (+1.0f)
+#define SIGN_ENC_YAW        (-1.0f)
 
 /* 目标角速度的加速度上限，rad/s^2。防止模式切换、猛推摇杆时给内环一个阶跃。
  * 200 表示 0→6 rad/s 要约 30ms，手上察觉不到 */

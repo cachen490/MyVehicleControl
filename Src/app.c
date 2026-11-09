@@ -130,7 +130,7 @@ void App_Task_1ms(void)
 
 void App_Loop(void)
 {
-    static uint32_t last_tick = 0;
+   static uint32_t last_tick = 0;
 
     if ((HAL_GetTick() - last_tick) >= 1)
     {

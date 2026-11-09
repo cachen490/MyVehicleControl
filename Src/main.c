@@ -79,7 +79,9 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  float    v[2]  = { 0.0f, 0.0f };
+  uint32_t t0    = HAL_GetTick();
+  uint8_t  phase = 0xFF;
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -113,10 +115,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /*float cur[4] = {2.0f, 0.0f, 0.0f, 0.0f};
-        Motor_3508_SetCurrent(cur);
-        if (g_motor3508[0].speed > 1.0f) HAL_GPIO_TogglePin(GPIOE, GPIO_PIN_11);
-        HAL_Delay(1);*/
    App_Loop();
   /* USER CODE END WHILE */
 
