@@ -10,6 +10,8 @@ Remote_t g_rc;
 static uint8_t s_dma[DMA_BUF_LEN];
 static uint8_t s_frame[DBUS_LEN];
 
+static volatile uint8_t s_rearm;    /* 出错后置 1，由 1ms 任务重新武装接收 */
+
 void Remote_Init(void)
 {
     memset(&g_rc, 0, sizeof(g_rc));
@@ -28,6 +30,10 @@ static uint16_t Get_Bits(const uint8_t *d, uint16_t bit_off, uint8_t bit_len)
     uint32_t acc  = 0;
 
     for (int i = 0; i < 4; i++) {
+        /* wheel 字段从字节 16 开始，4 字节窗会读到帧外 2 字节。
+         * 越界读的是相邻静态变量，值最后会被掩码丢掉，不会出错，
+         * 但没必要读 —— 出界就停。 */
+        if ((uint32_t)(byte + i) >= DBUS_LEN) break;
         acc |= (uint32_t)d[byte + i] << (8 * i);
     }
     acc >>= bit;
@@ -88,9 +94,38 @@ void Remote_OnIdle(void)
     __HAL_UART_CLEAR_IDLEFLAG(&huart1);
 }
 
+/**
+ * @brief UART 出错回调（HAL 里的 __weak 函数，这里覆盖它）
+ *
+ * ★ 这个函数不是可选的。HAL 在 DMA 接收模式下把 PE/FE/NE/ORE 一律当成
+ *   "blocking error"：调 UART_EndRxTransfer() 关掉接收中断、清 DMAR、
+ *   中止 DMA —— 然后【不重新打开】。原工程没有任何 ErrorCallback，
+ *   所以上电后只要撞上一次帧错（接收机上电瞬间、插拔、极性边缘都算），
+ *   遥控就永久收不到数据了，表现就是"车一动不动"，而且复位后可能又好了。
+ *
+ * 这里只置一个标志，真正的重新武装放到 1ms 任务里做（不在中断里调 HAL 的 DMA API）。
+ */
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart->Instance != USART1) return;
+
+    huart->ErrorCode = HAL_UART_ERROR_NONE;
+
+    s_rearm = 1;
+}
+
 void Remote_Update(void)
 {
     static uint16_t last_cnt = 0;
+
+    /* 上一次接收被错误中止了 → 重新武装。放在任务上下文，避开中断里调 DMA */
+    if (s_rearm) {
+        s_rearm = 0;
+        if (huart1.RxState == HAL_UART_STATE_READY) {
+            HAL_UART_Receive_DMA(&huart1, s_dma, DMA_BUF_LEN);
+            __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
+        }
+    }
 
     if (g_rc.frame_cnt != last_cnt) {
         last_cnt = g_rc.frame_cnt;

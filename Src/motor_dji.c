@@ -41,22 +41,8 @@ static void Motor_Decode(Motor_t *m, const uint8_t *d, float raw_per_amp)
     int16_t ecd   = (int16_t)(((uint16_t)d[0] << 8) | d[1]);
     int16_t speed = (int16_t)(((uint16_t)d[2] << 8) | d[3]);
     int16_t curr  = (int16_t)(((uint16_t)d[4] << 8) | d[5]);
-    int16_t diff;
 
-    if (!m->valid) {
-        m->last_ecd = ecd;
-        m->valid = 1;
-    }
-
-    diff = (int16_t)(ecd - m->last_ecd);
-    if (diff >  ECD_MAX / 2) diff -= (ECD_MAX + 1);
-    if (diff < -ECD_MAX / 2) diff += (ECD_MAX + 1);
-
-    m->total_ecd += diff;
-    m->last_ecd   = ecd;
-    m->ecd        = ecd;
-
-    m->angle   = (float)m->total_ecd * ECD_TO_RAD;
+    m->ecd     = ecd;
     m->speed   = (float)speed * RPM_TO_RAD;
     m->current = (float)curr / raw_per_amp;
     m->temp    = d[6];

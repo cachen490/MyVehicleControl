@@ -21,17 +21,22 @@ void Gimbal_Stop(void);
  */
 void Gimbal_SetYawFollow(uint8_t on);
 
-/** @brief 当前是不是跟随模式。1 = 跟随，0 = 锁大地 */
-uint8_t Gimbal_IsYawFollow(void);
+/**
+ * @brief 云台相对底盘的角度，rad，0~2π（Yaw_RelAngle 坐标，带 SIGN_ENC_YAW）
+ *
+ * 给底盘跟随环当**反馈**用。正方向与 Gimbal_GetYawRate() 一致，
+ * 所以两者可以直接在同一个式子里相加减（推导见 gimbal.c 里那个注释块）。
+ *
+ * ★ 它乘过 SIGN_ENC_YAW，符号不符合直觉是正常的；
+ *   要判"云台在机构行程的哪个位置"，用 gimbal.c 内部的机械角（不乘任何符号）。
+ */
+float Gimbal_GetYawRel(void);
 
 /**
- * @brief 进跟随时，目标角从哪里起步
- * @param on 0 = 原地接管当前角度（默认，云台不跳变）
- *           1 = 取 YAW_ENC_HEAD，即自己转回车头
+ * @brief 云台相对大地的 yaw 角速度，rad/s（已乘 SIGN_GZ、已低通）
  *
- * 只在"下一次进跟随"时才生效；上电默认值由 robot_config.h 的
- * YAW_FOLLOW_REALIGN 决定。用 YAW_ENC_HEAD 之前必须先实测它。
+ * 给底盘跟随环当**前馈**用。给 0 就退回纯 P，云台转快时底盘会明显滞后。
  */
-void Gimbal_SetYawRealign(uint8_t on);
+float Gimbal_GetYawRate(void);
 
 #endif /* GIMBAL_H */

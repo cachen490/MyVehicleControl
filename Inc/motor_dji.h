@@ -20,13 +20,9 @@
 /* 一个电机的全部运行状态。数组下标就是电机序号 */
 typedef struct {
     int16_t  ecd;        /* 本帧单圈编码器 0~8191 */
-    int16_t  last_ecd;   /* 上一帧的单圈值，用来算增量 */
-    int32_t  total_ecd;  /* 累计多圈编码器 */
-    float    angle;      /* 累计角度，rad（云台软限位靠它） */
     float    speed;      /* 转子角速度，rad/s */
     float    current;    /* 实际电流，A */
     uint8_t  temp;       /* 温度，摄氏度 */
-    uint8_t  valid;      /* 是否已经收到过第一帧 */
     uint16_t lost_ms;    /* 距离上次收到反馈的毫秒数 */
 } Motor_t;
 

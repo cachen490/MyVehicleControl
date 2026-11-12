@@ -9,14 +9,14 @@
 #include "gimbal.h"
 #include "iwdg.h"
 
-#define SW_RIGHT    0   /* g_rc.s 的下标：0 = 右拨杆，1 = 左拨杆 */
-#define SW_LEFT     1
+#define SW_RIGHT    0   /* g_rc.s 的下标：0 = 右拨杆 */
 
 /* 右拨杆三个位置对应的工作模式。三个档位的数值在 robot_config.h 里 */
 typedef enum {
     MODE_STOP = 0,      /* 中位：整车停 */
-    MODE_LOCK_EARTH,    /* 上  ：云台锁大地，不跟底盘转 */
-    MODE_FOLLOW         /* 下  ：云台跟随底盘转 */
+    MODE_LOCK_EARTH,    /* 上  ：云台锁大地，底盘手控（云台不跟底盘转） */
+    MODE_FOLLOW         /* 下  ：跟随。谁追谁由 YAW_FOLLOW_IMPL 决定，
+                         *       0（默认）= 底盘追云台，1 = 云台追底盘 */
 } RobotMode_t;
 
 /**
@@ -34,25 +34,6 @@ static RobotMode_t Robot_GetMode(void)
     if (g_rc.s[SW_RIGHT] == SW_DOWN_VAL) return MODE_FOLLOW;
 
     return MODE_STOP;
-}
-
-/**
- * @brief 左拨杆翻译成"进跟随时要不要转回车头"
- *
- * 上      → 1：目标角取车头方向 YAW_ENC_HEAD，切进跟随时云台自己转正
- * 中 / 下 → 0：目标角取当前相对角，原地接管，云台一点都不会动
- *
- * 只有"上"这一档会让云台自动转，中、下都是安全的静止档 ——
- * 故意这么设计：只有你明确把开关推到上，才允许云台自己甩一下。
- *
- * 注意它只在【进入跟随的那一拍】被读取（Gimbal_SetYawFollow 的上升沿），
- * 所以运行中扳它不会立刻生效，也不会半路把云台拽走。
- * 想让"正在进行的这次跟随"回正：
- *     左拨杆推到上 → 右拨杆扳回中位 → 右拨杆再扳到下位。
- */
-static uint8_t Robot_GetYawRealign(void)
-{
-    return (g_rc.s[SW_LEFT] == SW_UP_VAL) ? 1u : 0u;
 }
 
 /** @brief 硬件是否齐全。缺一个就整车停，不留"一半在跑"的状态 */
@@ -114,17 +95,26 @@ void App_Task_1ms(void)
         return;
     }
 
-    /* ★ 这两行的顺序不能换：
-     *   Gimbal_SetYawFollow() 在"进入跟随的那一拍"会去读 s_yaw_realign，
-     *   所以必须先把左拨杆的状态写进去，再告诉它要不要跟随。
-     *   写反的后果：扳上左拨杆进跟随，用的还是上一拍（或上电时的）旧值 ——
-     *   看着就是"回正开关失效"，而且很难查。
-     *
-     * 两个函数都是幂等的：值没变就什么也不做，可以每周期无脑调。 */
-    Gimbal_SetYawRealign(Robot_GetYawRealign());
+#if YAW_FOLLOW_IMPL == 0
+    /* ---- 底盘追云台（默认）----
+     * ★ 这里恒定传 0，不是写错：跟随时该出力的是**轮子**，不是 6020。
+     *   云台只负责"锁大地"（陀螺速度环把 ω 压到 0），绝对指向由摇杆决定；
+     *   底盘看到 rel 偏了就自己转过去贴合。
+     *   如果这里传 1，云台的 yaw 外环会把 rel 也闭环一遍 —— 两个环抢同一个量，
+     *   而且它会把目标锁在"进模式那一刻的 rel"上，和跟随环的目标（车头角）冲突。 */
+    Gimbal_SetYawFollow(0);
+#else
     Gimbal_SetYawFollow(mode == MODE_FOLLOW);
+#endif
 
+    /* 底盘两套任务互斥，二选一 —— 它们都要算出 wz，同时跑就是后者覆盖前者 */
+#if YAW_FOLLOW_IMPL == 0
+    if (mode == MODE_FOLLOW) Chassis_Follow_Task(&g_rc);
+    else                     Chassis_Task(&g_rc);
+#else
     Chassis_Task(&g_rc);
+#endif
+
     Gimbal_Task(&g_rc);
 }
 
@@ -151,20 +141,3 @@ void App_Loop(void)
         }
     }
 }
-
-/* ==========================================================================
- * Step 3 的验证代码（已停用，需要再测轮子时把 App_Task_1ms 换回这一段）：
- *
- *     static int cnt = 0;
- *     cnt++;
- *     if (cnt < 3000) {                    // 只让 vx = 0.3 m/s，持续 3 秒
- *         float cur[4];
- *         for (int i = 0; i < 4; i++) {
- *             float meas = g_motor3508[i].speed / GEAR_RATIO_3508;
- *             cur[i] = (3.95f - meas) * 0.35f;
- *         }
- *         Motor_3508_SetCurrent(cur);
- *     } else if (cnt > 5000) {
- *         cnt = 0;
- *     }
- * ========================================================================== */

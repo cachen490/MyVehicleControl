@@ -79,9 +79,6 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  float    v[2]  = { 0.0f, 0.0f };
-  uint32_t t0    = HAL_GetTick();
-  uint8_t  phase = 0xFF;
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/

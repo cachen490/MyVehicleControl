@@ -86,6 +86,18 @@ static void Mahony_Update(float gx, float gy, float gz,
             s_gb[1] += MAHONY_KI * halfey * dt;
             s_gb[2] += MAHONY_KI * halfez * dt;
 
+            /* ★ 必须限幅。这个量名义上是"陀螺零偏"，真实零偏不会超过 0.02rad/s；
+             *   但只要有持续的姿态误差(底盘加速被当成倾斜、A板支架被顶弯、加速度计有零偏)，
+             *   它就会一直往一个方向累加、**没有上限**。累加到 0.05rad/s 就意味着
+             *   解算出来的角度每秒漂 3°，云台会慢慢歪掉 —— 这正是"调着调着就
+             *   越来越不水平、重启又好了"的那类灵异现象。
+             *   0.05rad/s 已经比任何真实零偏大一个数量级，限在这里不会损失精度。 */
+            for (int k = 0; k < 3; k++)
+            {
+                if (s_gb[k] >  0.05f) s_gb[k] =  0.05f;
+                if (s_gb[k] < -0.05f) s_gb[k] = -0.05f;
+            }
+
             gx += s_gb[0];
             gy += s_gb[1];
             gz += s_gb[2];
@@ -246,4 +258,27 @@ float IMU_GetPitch(void)
     if (s < -1.0f) s = -1.0f;
 
     return asinf(s);
+}
+
+/**
+ * @brief 横滚角，rad。绕 A 板 X 轴的倾角，0 = 水平
+ *
+ * 从四元数按 ZYX 欧拉角取：roll = atan2(2*(q0*q1 + q2*q3), 1 - 2*(q1² + q2²))
+ * 和 IMU_GetPitch() 是同一套约定，只是取的轴不同。
+ *
+ * ★★★ 为什么 pitch 环要用它：
+ *   实测本机的云台 pitch 关节转轴对应 MPU 的 **roll 轴**（A 板相对机构转了 90°）。
+ *   证据：把摆臂从下挡块推到上挡块，IMU_GetPitch() 只变化 0.0361 rad（2.07°），
+ *   而机构真实行程是几十度 —— 说明 pitch 轴只吃到关节转角的残余投影。
+ *   换成 roll 之后，读数变化量应当 ≈ 真实行程，这才是能闭环的反馈。
+ *
+ * ★ 用 atan2 而不是 asin：asin 在 ±90° 附近不可微，且这里的分母天然非负，
+ *   atan2 版本没有额外代价，反而在姿态接近侧倾 90° 时更稳。
+ */
+float IMU_GetRoll(void)
+{
+    float y = 2.0f * (s_q[0] * s_q[1] + s_q[2] * s_q[3]);
+    float x = 1.0f - 2.0f * (s_q[1] * s_q[1] + s_q[2] * s_q[2]);
+
+    return atan2f(y, x);
 }
