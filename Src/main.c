@@ -102,10 +102,11 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_CAN1_Init();
-  //MX_IWDG_Init();
   MX_SPI5_Init();
   /* USER CODE BEGIN 2 */
   App_Init();
+  /* IWDG 放在 App_Init 之后：里面有 HAL_Delay(100)，超时约 98ms 会先复位 */
+  MX_IWDG_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -3,14 +3,14 @@
 #include <string.h>
 
 #define DBUS_LEN     18
-#define DMA_BUF_LEN  36
+#define DMA_BUF_LEN  36     /* 留两帧余量，防止 DMA 半帧对齐 */
 
 Remote_t g_rc;
 
 static uint8_t s_dma[DMA_BUF_LEN];
 static uint8_t s_frame[DBUS_LEN];
 
-static volatile uint8_t s_rearm;    /* 出错后置 1，由 1ms 任务重新武装接收 */
+static volatile uint8_t s_rearm;    /* 1=串口出错后需要重开 DMA */
 
 void Remote_Init(void)
 {
@@ -23,6 +23,7 @@ void Remote_Init(void)
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 }
 
+/* 从字节流里取任意位置、任意长度的位段（DBUS 是小端位序） */
 static uint16_t Get_Bits(const uint8_t *d, uint16_t bit_off, uint8_t bit_len)
 {
     uint32_t byte = bit_off >> 3;
@@ -30,9 +31,6 @@ static uint16_t Get_Bits(const uint8_t *d, uint16_t bit_off, uint8_t bit_len)
     uint32_t acc  = 0;
 
     for (int i = 0; i < 4; i++) {
-        /* wheel 字段从字节 16 开始，4 字节窗会读到帧外 2 字节。
-         * 越界读的是相邻静态变量，值最后会被掩码丢掉，不会出错，
-         * 但没必要读 —— 出界就停。 */
         if ((uint32_t)(byte + i) >= DBUS_LEN) break;
         acc |= (uint32_t)d[byte + i] << (8 * i);
     }
@@ -41,6 +39,7 @@ static uint16_t Get_Bits(const uint8_t *d, uint16_t bit_off, uint8_t bit_len)
     return (uint16_t)(acc & ((1u << bit_len) - 1));
 }
 
+/* 18 字节 DBUS 帧 → 摇杆归一化 + 右拨杆档位 */
 static void Remote_Decode(const uint8_t *d)
 {
     g_rc.ch[0] = (int16_t)Get_Bits(d, 0,  11);
@@ -48,18 +47,17 @@ static void Remote_Decode(const uint8_t *d)
     g_rc.ch[2] = (int16_t)Get_Bits(d, 22, 11);
     g_rc.ch[3] = (int16_t)Get_Bits(d, 33, 11);
 
+    /* 中位 1024，满量程 ±660，归一化到 [-1, 1] */
     g_rc.rx = (float)(g_rc.ch[0] - 1024) / 660.0f;
-    g_rc.ry = (float)(g_rc.ch[1] - 1024) / 660.0f;
     g_rc.lx = (float)(g_rc.ch[2] - 1024) / 660.0f;
     g_rc.ly = (float)(g_rc.ch[3] - 1024) / 660.0f;
 
+    /* 摇杆回中死区 */
     if (g_rc.rx > -0.02f && g_rc.rx < 0.02f) g_rc.rx = 0.0f;
-    if (g_rc.ry > -0.02f && g_rc.ry < 0.02f) g_rc.ry = 0.0f;
     if (g_rc.lx > -0.02f && g_rc.lx < 0.02f) g_rc.lx = 0.0f;
     if (g_rc.ly > -0.02f && g_rc.ly < 0.02f) g_rc.ly = 0.0f;
 
-    g_rc.s[0] = (uint8_t)Get_Bits(d, 44, 2);
-    g_rc.s[1] = (uint8_t)Get_Bits(d, 46, 2);
+    g_rc.sw = (uint8_t)Get_Bits(d, 44, 2);
 
     g_rc.wheel = (float)((int16_t)Get_Bits(d, 128, 11) - 1024) / 660.0f;
     if (g_rc.wheel > -0.05f && g_rc.wheel < 0.05f) g_rc.wheel = 0.0f;
@@ -68,12 +66,7 @@ static void Remote_Decode(const uint8_t *d)
     g_rc.lost_ms = 0;
 }
 
-/**
- * @brief 线路空闲（一帧收完）时被调用，在中断上下文执行
- *
- * DMA 在 Normal 模式下收满 36 字节才会自己停，而我们一帧只有 18 字节，
- * 所以每次空闲都要手动"停掉 → 重新武装"，否则下次就没 DMA 了。
- */
+/* 串口空闲中断：取 DMA 缓冲区最后 18 字节当一帧，然后重开 DMA */
 void Remote_OnIdle(void)
 {
     uint16_t remain;
@@ -94,17 +87,7 @@ void Remote_OnIdle(void)
     __HAL_UART_CLEAR_IDLEFLAG(&huart1);
 }
 
-/**
- * @brief UART 出错回调（HAL 里的 __weak 函数，这里覆盖它）
- *
- * ★ 这个函数不是可选的。HAL 在 DMA 接收模式下把 PE/FE/NE/ORE 一律当成
- *   "blocking error"：调 UART_EndRxTransfer() 关掉接收中断、清 DMAR、
- *   中止 DMA —— 然后【不重新打开】。原工程没有任何 ErrorCallback，
- *   所以上电后只要撞上一次帧错（接收机上电瞬间、插拔、极性边缘都算），
- *   遥控就永久收不到数据了，表现就是"车一动不动"，而且复位后可能又好了。
- *
- * 这里只置一个标志，真正的重新武装放到 1ms 任务里做（不在中断里调 HAL 的 DMA API）。
- */
+/* 串口错误（溢出/噪声）后只置标志，实际重启放到任务里做 */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance != USART1) return;
@@ -114,11 +97,11 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
     s_rearm = 1;
 }
 
+/* 每 1ms：处理 DMA 重开 + 维护掉线计数 */
 void Remote_Update(void)
 {
     static uint16_t last_cnt = 0;
 
-    /* 上一次接收被错误中止了 → 重新武装。放在任务上下文，避开中断里调 DMA */
     if (s_rearm) {
         s_rearm = 0;
         if (huart1.RxState == HAL_UART_STATE_READY) {

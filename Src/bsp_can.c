@@ -1,23 +1,24 @@
 #include "bsp_can.h"
 #include "can.h"
 
-/* ==================== 接收队列 ==================== */
 #define RX_QUEUE_SIZE 16
 
+/* 接收帧环形队列：中断里写 head，任务里读 tail */
 static CAN_RxFrame_t     s_queue[RX_QUEUE_SIZE];
-static volatile uint8_t  s_head;   /* 中断里写 */
-static volatile uint8_t  s_tail;   /* 主循环里读 */
+static volatile uint8_t  s_head;
+static volatile uint8_t  s_tail;
 
+/* 开全通滤波 + 启动 CAN + 打开 FIFO0 接收中断 */
 void BSP_CAN_Init(void)
 {
     CAN_FilterTypeDef f = {0};
 
-    f.FilterBank           = 0;                     /* 用 0 号滤波器 */
-    f.FilterMode           = CAN_FILTERMODE_IDMASK; /* ID + 掩码模式 */
+    f.FilterBank           = 0;
+    f.FilterMode           = CAN_FILTERMODE_IDMASK;
     f.FilterScale          = CAN_FILTERSCALE_32BIT;
     f.FilterIdHigh         = 0x0000;
     f.FilterIdLow          = 0x0000;
-    f.FilterMaskIdHigh     = 0x0000;                /* 掩码全 0 = 不比较 = 全收 */
+    f.FilterMaskIdHigh     = 0x0000;
     f.FilterMaskIdLow      = 0x0000;
     f.FilterFIFOAssignment = CAN_RX_FIFO0;
     f.FilterActivation     = ENABLE;
@@ -30,6 +31,7 @@ void BSP_CAN_Init(void)
     HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 }
 
+/* 发一帧标准帧；邮箱满就返回 0 */
 uint8_t BSP_CAN_SendStd(uint16_t std_id, const uint8_t *data, uint8_t len)
 {
     CAN_TxHeaderTypeDef hdr = {0};
@@ -37,8 +39,8 @@ uint8_t BSP_CAN_SendStd(uint16_t std_id, const uint8_t *data, uint8_t len)
 
     hdr.StdId = std_id;
     hdr.ExtId = 0;
-    hdr.IDE   = CAN_ID_STD;      /* 标准帧，不是扩展帧 */
-    hdr.RTR   = CAN_RTR_DATA;    /* 数据帧，不是远程帧 */
+    hdr.IDE   = CAN_ID_STD;
+    hdr.RTR   = CAN_RTR_DATA;
     hdr.DLC   = len;
     hdr.TransmitGlobalTime = DISABLE;
     if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) == 0) {
@@ -48,6 +50,7 @@ uint8_t BSP_CAN_SendStd(uint16_t std_id, const uint8_t *data, uint8_t len)
     return (HAL_CAN_AddTxMessage(&hcan1, &hdr, (uint8_t *)data, &mailbox) == HAL_OK) ? 1 : 0;
 }
 
+/* 从队列取一帧，队列空返回 0 */
 uint8_t BSP_CAN_PopFrame(CAN_RxFrame_t *out)
 {
     if (s_tail == s_head) {
@@ -58,11 +61,7 @@ uint8_t BSP_CAN_PopFrame(CAN_RxFrame_t *out)
     return 1;
 }
 
-/**
- * @brief HAL 的 CAN 接收回调。收到一帧就进来一次，在中断上下文执行
- *
- * 这里只做"搬 8 个字节"，不做任何计算。
- */
+/* HAL 的接收中断回调：只收标准帧，满了就丢 */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
     CAN_RxHeaderTypeDef hdr;
