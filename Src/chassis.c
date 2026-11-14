@@ -138,7 +138,7 @@ void Chassis_Follow_Task(const Remote_t *rc)
     /* 阻尼项：只压 (轮速 − 前馈) 的差，稳态时为 0 */
     float w_d = - CHASSIS_FOLLOW_KD * s_follow_ss * (w_meas - wz_m);
 
-    /* 减速侧钳位：D 项最多吃掉前馈，不许把指令推过零点 */
+    /* 减速侧钳位 */
     {
         float d_lim = ff * fabsf(wz_m);
 

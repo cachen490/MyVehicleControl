@@ -93,7 +93,6 @@
 #define YAW_STALL_I_TAU     0.25f   /* 判定后积分漏回 0 的时间常数，s */
 
 /* ---- 松手防"顺着摇杆方向继续走" ---- */
-#define YAW_RELEASE_SNAP    1                   /* 摇杆回中那一拍把 θt 对齐到 θh */
 #define YAW_TGT_LAG_MAX     (10.0f * DEG2RAD)   /* θt 超前量上限（单向，只在推杆侧） */
 
 /* ---- yaw 限位墙（编码器域，速度规划式） ---- */

@@ -105,7 +105,7 @@ int main(void)
   MX_SPI5_Init();
   /* USER CODE BEGIN 2 */
   App_Init();
-  /* IWDG 放在 App_Init 之后：里面有 HAL_Delay(100)，超时约 98ms 会先复位 */
+
   MX_IWDG_Init();
   /* USER CODE END 2 */
 

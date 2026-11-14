@@ -44,13 +44,12 @@ static float    s_off_hold;         /* 贴边保持的目标机械角 */
 
 static uint8_t  s_ff_on;            /* 上一拍摇杆是否在推 */
 
-/* 云台相对底盘的角（编码器，含符号修正），rad */
+/* 云台相对底盘的角，rad */
 static float Yaw_RelAngle(void)
 {
     return (float)g_motor6020[M_YAW].ecd * ECD_TO_RAD * SIGN_ENC_YAW;
 }
 
-/* 折到 (−π, π] */
 static float Angle_Wrap(float d)
 {
     while (d >  TWO_PI * 0.5f) d -= TWO_PI;
@@ -211,7 +210,7 @@ void Gimbal_Task(const Remote_t *rc)
 
     float ff = rc->rx * SIGN_RC_YAW_LOCK * s_yaw_rate_cap;
 
-    /* 堵转判定：指令很大但实际不转 */
+    /* 堵转判定 */
     if ((fabsf(s_yaw_t_cmd) > YAW_STALL_CMD) &&
         (fabsf(s_wz_f)     < YAW_STALL_W))
     {
@@ -227,8 +226,6 @@ void Gimbal_Task(const Remote_t *rc)
     /* 大地系行程窗口：θt 只允许在软限位内侧活动 */
     float win_mid  = (s_end_lo + s_end_hi) * 0.5f;
     float win_half = (s_end_hi - s_end_lo) * 0.5f - YAW_SOFT_MARGIN;
-
-    if (win_half < 5.0f * DEG2RAD) win_half = 5.0f * DEG2RAD;
 
     uint8_t just_rel = 0;
 
@@ -248,7 +245,7 @@ void Gimbal_Task(const Remote_t *rc)
     {
         uint8_t ff_on = (ff != 0.0f) ? 1u : 0u;
 
-        if (YAW_RELEASE_SNAP && s_ff_on && !ff_on)
+        if (s_ff_on && !ff_on)
         {
             just_rel  = 1;
             s_yaw_tgt = s_yaw_world;
@@ -390,8 +387,7 @@ void Gimbal_Task(const Remote_t *rc)
             if (u > u_max)
             {
                 yaw_t = u_max * out_sign;
-
-                /* 被墙压住时 θt 钉在 θh 上，不攒债 */
+                
                 s_yaw_tgt = s_yaw_world;
             }
         }
@@ -428,35 +424,22 @@ void Gimbal_Task(const Remote_t *rc)
 
     {
         float err  = PITCH_ANGLE_CENTER - pit_abs;
+        float pi;
         float duty;
         float d_term;
 
         PID_Calc(&s_pid_pitch, PITCH_ANGLE_CENTER, pit_abs, CTRL_DT);
 
-        {
-            float pi = s_pid_pitch.kp * err + s_pid_pitch.i_term;
+        pi = s_pid_pitch.kp * err + s_pid_pitch.i_term;
 
-            /* 输出饱和时按"刚好不饱和"反算积分，防止积分顶死拉不回 */
-            if (pi > GIMBAL_VOLT_MAX || pi < -GIMBAL_VOLT_MAX)
-            {
-                float lim = (pi > 0.0f) ? GIMBAL_VOLT_MAX : -GIMBAL_VOLT_MAX;
+        d_term = PITCH_KD * s_wp_f;
+        if (d_term >  PITCH_D_MAX) d_term =  PITCH_D_MAX;
+        if (d_term < -PITCH_D_MAX) d_term = -PITCH_D_MAX;
 
-                s_pid_pitch.i_term = lim - s_pid_pitch.kp * err;
-                if (s_pid_pitch.i_term >  PITCH_I_MAX) s_pid_pitch.i_term =  PITCH_I_MAX;
-                if (s_pid_pitch.i_term < -PITCH_I_MAX) s_pid_pitch.i_term = -PITCH_I_MAX;
+        duty = pi - d_term;
 
-                pi = lim;
-            }
-
-            d_term = PITCH_KD * s_wp_f;
-            if (d_term >  PITCH_D_MAX) d_term =  PITCH_D_MAX;
-            if (d_term < -PITCH_D_MAX) d_term = -PITCH_D_MAX;
-
-            duty = pi - d_term;
-
-            if (duty >  GIMBAL_VOLT_MAX) duty =  GIMBAL_VOLT_MAX;
-            if (duty < -GIMBAL_VOLT_MAX) duty = -GIMBAL_VOLT_MAX;
-        }
+        if (duty >  GIMBAL_VOLT_MAX) duty =  GIMBAL_VOLT_MAX;
+        if (duty < -GIMBAL_VOLT_MAX) duty = -GIMBAL_VOLT_MAX;
 
         v[M_PITCH] = duty * SIGN_PIT;
     }
